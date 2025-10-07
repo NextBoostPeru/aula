@@ -7,23 +7,27 @@
     if(!aula){ box.innerHTML='Elige sede y aula.'; return; }
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try{
-      const r = await api(`../backend/secretaria/estudiantes_por_aula.php?aula_id=${aula}`);
-      const rows = (r.items||[]).map(x=>`
+      const r = await apiSecretaria('estudiantes_por_aula.php', { searchParams: { aula_id: aula } });
+      const rows = (r.items||[]).map(x=>{
+        const editPayload = encodeDataAttr({ uid: x.user_id });
+        const bajaPayload = encodeDataAttr({ enr: x.enrollment_id, name: x.name });
+        return `
         <tr>
-          <td class="px-3 py-2">${x.user_id}</td>
-          <td class="px-3 py-2">${x.name}</td>
-          <td class="px-3 py-2">${x.dni}</td>
-          <td class="px-3 py-2">${x.email}</td>
-          <td class="px-3 py-2 text-xs text-gray-500">enr:${x.enrollment_id}</td>
+          <td class="px-3 py-2">${escapeHTML(x.user_id ?? '')}</td>
+          <td class="px-3 py-2">${escapeHTML(x.name ?? '')}</td>
+          <td class="px-3 py-2">${escapeHTML(x.dni ?? '')}</td>
+          <td class="px-3 py-2">${escapeHTML(x.email ?? '')}</td>
+          <td class="px-3 py-2 text-xs text-gray-500">enr:${escapeHTML(x.enrollment_id ?? '')}</td>
           <td class="px-3 py-2">
             <div class="flex flex-wrap gap-2">
               <button class="px-2 py-1 rounded-lg border hover:bg-gray-50 text-xs"
-                      data-edit='${JSON.stringify({uid:x.user_id})}'>Editar</button>
+                      data-edit="${editPayload}">Editar</button>
               <button class="px-2 py-1 rounded-lg border hover:bg-gray-50 text-xs text-red-600"
-                      data-baja='${JSON.stringify({enr:x.enrollment_id, name:x.name})}'>Quitar del aula</button>
+                      data-baja="${bajaPayload}">Quitar del aula</button>
             </div>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       box.innerHTML = `
         <div class="overflow-auto">
           <table class="min-w-full text-sm">
@@ -44,16 +48,21 @@
 
       // acciones
       $$('#tablaEstudiantes [data-edit]').forEach(btn=>{
-        btn.addEventListener('click', ()=> openEditarModal(JSON.parse(btn.getAttribute('data-edit')).uid));
+        btn.addEventListener('click', ()=>{
+          const data = decodeDataAttr(btn.dataset.edit);
+          if (data?.uid) openEditarModal(data.uid);
+        });
       });
       $$('#tablaEstudiantes [data-baja]').forEach(btn=>{
         btn.addEventListener('click', ()=>{
-          const {enr, name} = JSON.parse(btn.getAttribute('data-baja'));
-          openBajaModal(enr, name);
+          const data = decodeDataAttr(btn.dataset.baja);
+          if (!data) return;
+          openBajaModal(data.enr, data.name);
         });
       });
 
-    }catch{
+    }catch(error){
+      console.error('No se pudo cargar la lista de estudiantes', error);
       box.innerHTML = `<div class="text-red-600 text-sm">Error cargando estudiantes</div>`;
     }
   }
@@ -65,9 +74,11 @@
     // cursos del aula
     let cursos=[];
     try{
-      const r = await api(`../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
+      const r = await apiSecretaria('aula_cursos.php', { searchParams: { aula_id: aulaId } });
       cursos = r.items || [];
-    }catch{}
+    }catch(error){
+      console.error('No se pudieron obtener los cursos del aula', error);
+    }
     if(!cursos.length) return modal.err('Este aula no tiene cursos asignados.');
 
     modal.open({
@@ -105,7 +116,7 @@
           <div>
             <label class="text-sm text-gray-600">Curso del aula</label>
             <select name="aula_curso_id" id="fAulaCurso" class="w-full mt-1 px-3 py-2 border rounded-xl" required>
-              ${cursos.map(c=>`<option value="${c.aula_curso_id}">${c.titulo}</option>`).join('')}
+              ${cursos.map(c=>`<option value="${escapeHTML(c.aula_curso_id ?? '')}">${escapeHTML(c.titulo ?? '')}</option>`).join('')}
             </select>
           </div>
           <input type="hidden" id="fUserId" name="user_id" value="">
@@ -119,26 +130,30 @@
 
         if(!userId){
           try{
-            const r = await fetch('../backend/secretaria/alumno_crear.php', { method:'POST', body:fd });
-            const d = await r.json();
-            if(!r.ok || !d.ok) return modal.err(d.msg || 'No se pudo crear el alumno');
+            const d = await apiSecretaria('alumno_crear.php', { method:'POST', body:fd });
+            if(!d.ok) return modal.err(d.msg || 'No se pudo crear el alumno');
             userId = d.user_id; $('#fUserId').value = userId;
             $('#auxMsg').innerHTML = d.temp_password
-              ? '<span class="text-green-700">Alumno creado. Contraseña: <b>'+d.temp_password+'</b></span>'
+              ? `<span class="text-green-700">Alumno creado. Contraseña: <b>${escapeHTML(d.temp_password)}</b></span>`
               : '<span class="text-green-700">Alumno creado.</span>';
-          }catch{ return modal.err('Error de red al crear alumno'); }
+          }catch(error){
+            console.error('Error creando alumno', error);
+            return modal.err('Error de red al crear alumno');
+          }
         }
 
         const enrFd = new FormData();
         enrFd.append('user_id', userId);
         enrFd.append('aula_curso_id', $('#fAulaCurso').value);
         try{
-          const r = await fetch('../backend/secretaria/matricular.php', { method:'POST', body: enrFd });
-          const d = await r.json();
-          if(!r.ok || !d.ok) return modal.err(d.msg || 'No se pudo matricular');
+          const d = await apiSecretaria('matricular.php', { method:'POST', body: enrFd });
+          if(!d.ok) return modal.err(d.msg || 'No se pudo matricular');
           modal.close(); modal.ok('Matriculado correctamente');
           await renderLista();
-        }catch{ modal.err('Error de red al matricular'); }
+        }catch(error){
+          console.error('Error matriculando alumno', error);
+          modal.err('Error de red al matricular');
+        }
       }
     });
 
@@ -146,10 +161,10 @@
       const q = $('#qBuscar').value.trim();
       if(!q) return;
       try{
-        const r = await api(`../backend/secretaria/alumno_buscar.php?q=${encodeURIComponent(q)}`);
+        const r = await apiSecretaria('alumno_buscar.php', { searchParams: { q } });
         const u = r.user;
         if(!u){
-          $('#fUserId').value=''; 
+          $('#fUserId').value='';
           $('#auxMsg').innerHTML='<span class="text-amber-700">No se encontró. Completa el formulario para crearlo.</span>';
           return;
         }
@@ -158,8 +173,9 @@
         $('#fDni').value    = u.dni  || '';
         $('#fEmail').value  = u.email|| '';
         $('#fPhone').value  = u.phone|| '';
-        $('#auxMsg').innerHTML = '<span class="text-green-700">Usuario existente. Se usará ID '+u.id+'</span>';
-      }catch{
+        $('#auxMsg').innerHTML = `<span class="text-green-700">Usuario existente. Se usará ID ${escapeHTML(u.id)}</span>`;
+      }catch(error){
+        console.error('Error buscando alumno', error);
         $('#auxMsg').innerHTML='<span class="text-red-700">Error al buscar</span>';
       }
     });
@@ -168,29 +184,30 @@
   // --------- Editar datos de alumno ---------
   async function openEditarModal(user_id){
     try{
-      const r = await api(`../backend/secretaria/alumno_detalle.php?user_id=${user_id}`);
+      const r = await apiSecretaria('alumno_detalle.php', { searchParams: { user_id } });
       const u = r.user;
+      if(!u) throw new Error('Sin datos de usuario');
       modal.open({
         title: 'Editar alumno',
         bodyHTML: `
           <form id="formEdit" class="space-y-3">
-            <input type="hidden" name="user_id" value="${u.id}">
+            <input type="hidden" name="user_id" value="${escapeHTML(u.id ?? '')}">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label class="text-sm text-gray-600">Nombre</label>
-                <input name="name" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${u.name||''}" required>
+                <input name="name" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${escapeHTML(u.name||'')}" required>
               </div>
               <div>
                 <label class="text-sm text-gray-600">DNI</label>
-                <input name="dni" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${u.dni||''}">
+                <input name="dni" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${escapeHTML(u.dni||'')}">
               </div>
               <div>
                 <label class="text-sm text-gray-600">Email</label>
-                <input name="email" type="email" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${u.email||''}">
+                <input name="email" type="email" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${escapeHTML(u.email||'')}">
               </div>
               <div>
                 <label class="text-sm text-gray-600">Celular</label>
-                <input name="phone" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${u.phone||''}">
+                <input name="phone" type="text" class="w-full mt-1 px-3 py-2 border rounded-xl" value="${escapeHTML(u.phone||'')}">
               </div>
             </div>
           </form>`,
@@ -198,15 +215,20 @@
         onPrimary: async ()=>{
           const fd = new FormData($('#formEdit'));
           try{
-            const res = await fetch('../backend/secretaria/alumno_actualizar.php',{method:'POST', body:fd});
-            const d = await res.json();
-            if(!res.ok || !d.ok) return modal.err(d.msg || 'No se pudo actualizar');
+            const d = await apiSecretaria('alumno_actualizar.php',{method:'POST', body:fd});
+            if(!d.ok) return modal.err(d.msg || 'No se pudo actualizar');
             modal.close(); modal.ok('Datos actualizados');
             await renderLista();
-          }catch{ modal.err('Error de red'); }
+          }catch(error){
+            console.error('Error actualizando alumno', error);
+            modal.err('Error de red');
+          }
         }
       });
-    }catch{ modal.err('No se pudo cargar datos'); }
+    }catch(error){
+      console.error('No se pudo cargar datos del alumno', error);
+      modal.err('No se pudo cargar datos');
+    }
   }
 
   // --------- Baja de matrícula (manteniendo historial) ---------
@@ -214,19 +236,21 @@
     modal.open({
       title: 'Quitar del aula',
       bodyHTML: `<div class="text-sm">
-        ¿Deseas quitar a <b>${name}</b> de esta aula?<br>
+        ¿Deseas quitar a <b>${escapeHTML(name || '')}</b> de esta aula?<br>
         <span class="text-gray-600">La matrícula quedará en historial.</span>
       </div>`,
       primaryLabel: 'Confirmar',
       onPrimary: async ()=>{
         const fd = new FormData(); fd.append('enrollment_id', enrollment_id);
         try{
-          const res = await fetch('../backend/secretaria/matricula_baja.php',{method:'POST', body:fd});
-          const d = await res.json();
-          if(!res.ok || !d.ok) return modal.err(d.msg || 'No se pudo dar de baja');
+          const d = await apiSecretaria('matricula_baja.php',{method:'POST', body:fd});
+          if(!d.ok) return modal.err(d.msg || 'No se pudo dar de baja');
           modal.close(); modal.ok('Alumno retirado');
           await renderLista();
-        }catch{ modal.err('Error de red'); }
+        }catch(error){
+          console.error('Error retirando alumno del aula', error);
+          modal.err('Error de red');
+        }
       }
     });
   }
