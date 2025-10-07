@@ -7,7 +7,7 @@
     if(!aula){ box.innerHTML='Elige sede y aula.'; return; }
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try{
-      const r = await api(`../../backend/secretaria/estudiantes_por_aula.php?aula_id=${aula}`);
+      const r = await api(`../backend/secretaria/estudiantes_por_aula.php?aula_id=${aula}`);
       const rows = (r.items||[]).map(x=>`
         <tr>
           <td class="px-3 py-2">${x.user_id}</td>
@@ -65,7 +65,7 @@
     // cursos del aula
     let cursos=[];
     try{
-      const r = await api(`../../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
+      const r = await api(`../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
       cursos = r.items || [];
     }catch{}
     if(!cursos.length) return modal.err('Este aula no tiene cursos asignados.');
@@ -119,7 +119,7 @@
 
         if(!userId){
           try{
-            const r = await fetch('../../backend/secretaria/alumno_crear.php', { method:'POST', body:fd });
+            const r = await fetch('../backend/secretaria/alumno_crear.php', { method:'POST', body:fd });
             const d = await r.json();
             if(!r.ok || !d.ok) return modal.err(d.msg || 'No se pudo crear el alumno');
             userId = d.user_id; $('#fUserId').value = userId;
@@ -133,7 +133,7 @@
         enrFd.append('user_id', userId);
         enrFd.append('aula_curso_id', $('#fAulaCurso').value);
         try{
-          const r = await fetch('../../backend/secretaria/matricular.php', { method:'POST', body: enrFd });
+          const r = await fetch('../backend/secretaria/matricular.php', { method:'POST', body: enrFd });
           const d = await r.json();
           if(!r.ok || !d.ok) return modal.err(d.msg || 'No se pudo matricular');
           modal.close(); modal.ok('Matriculado correctamente');
@@ -146,7 +146,7 @@
       const q = $('#qBuscar').value.trim();
       if(!q) return;
       try{
-        const r = await api(`../../backend/secretaria/alumno_buscar.php?q=${encodeURIComponent(q)}`);
+        const r = await api(`../backend/secretaria/alumno_buscar.php?q=${encodeURIComponent(q)}`);
         const u = r.user;
         if(!u){
           $('#fUserId').value=''; 
@@ -168,7 +168,7 @@
   // --------- Editar datos de alumno ---------
   async function openEditarModal(user_id){
     try{
-      const r = await api(`../../backend/secretaria/alumno_detalle.php?user_id=${user_id}`);
+      const r = await api(`../backend/secretaria/alumno_detalle.php?user_id=${user_id}`);
       const u = r.user;
       modal.open({
         title: 'Editar alumno',
@@ -198,7 +198,7 @@
         onPrimary: async ()=>{
           const fd = new FormData($('#formEdit'));
           try{
-            const res = await fetch('../../backend/secretaria/alumno_actualizar.php',{method:'POST', body:fd});
+            const res = await fetch('../backend/secretaria/alumno_actualizar.php',{method:'POST', body:fd});
             const d = await res.json();
             if(!res.ok || !d.ok) return modal.err(d.msg || 'No se pudo actualizar');
             modal.close(); modal.ok('Datos actualizados');
@@ -221,7 +221,7 @@
       onPrimary: async ()=>{
         const fd = new FormData(); fd.append('enrollment_id', enrollment_id);
         try{
-          const res = await fetch('../../backend/secretaria/matricula_baja.php',{method:'POST', body:fd});
+          const res = await fetch('../backend/secretaria/matricula_baja.php',{method:'POST', body:fd});
           const d = await res.json();
           if(!res.ok || !d.ok) return modal.err(d.msg || 'No se pudo dar de baja');
           modal.close(); modal.ok('Alumno retirado');

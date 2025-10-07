@@ -9,7 +9,7 @@
 
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try{
-      const r = await api(`../../backend/secretaria/modulos_por_aula.php?aula_id=${aula}`);
+      const r = await api(`../backend/secretaria/modulos_por_aula.php?aula_id=${aula}`);
       const items = r.items || [];
 
       const rows = items.map(m => {
@@ -70,7 +70,7 @@
 
     let cursos = [];
     try {
-      const r = await api(`../../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
+      const r = await api(`../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
       cursos = r.items || [];
     } catch {}
     if(!cursos.length) return modal.err('Este aula no tiene cursos configurados.');
@@ -111,7 +111,7 @@
       onPrimary: async ()=>{
         const fd = new FormData($('#formModulo'));
         try{
-          const resp = await api('../../backend/secretaria/modulo_crear.php', { method:'POST', body:fd });
+          const resp = await api('../backend/secretaria/modulo_crear.php', { method:'POST', body:fd });
           modal.close(); modal.ok(resp.msg || 'Módulo creado');
           await list();
         }catch(err){ modal.err('No se pudo crear el módulo'); }
@@ -153,7 +153,7 @@
       onPrimary: async ()=>{
         const fd = new FormData($('#formEditModulo'));
         try{
-          const res = await fetch('../../backend/secretaria/modulo_editar.php', { method:'POST', body:fd });
+          const res = await fetch('../backend/secretaria/modulo_editar.php', { method:'POST', body:fd });
           const txt = await res.text();
           let d;
           try { d = JSON.parse(txt); } catch { throw new Error('Respuesta no válida del servidor:\n'+txt); }
@@ -174,7 +174,7 @@
       onPrimary: async ()=>{
         const fd = new FormData(); fd.append('modulo_id', id);
         try{
-          const r = await api('../../backend/secretaria/modulo_eliminar.php', { method:'POST', body:fd });
+          const r = await api('../backend/secretaria/modulo_eliminar.php', { method:'POST', body:fd });
           modal.close(); modal.ok(r.msg || 'Módulo eliminado');
           await list();
         }catch(e){ modal.err('No se pudo eliminar el módulo'); }
@@ -197,7 +197,7 @@
         fd.append('modulo_id', modulo_id);
         fd.append('start_date', $('#startDate').value);
         try{
-          const r = await api('../../backend/secretaria/programar_clases.php', { method:'POST', body:fd });
+          const r = await api('../backend/secretaria/programar_clases.php', { method:'POST', body:fd });
           modal.close(); modal.ok(r.msg || 'Clases programadas');
         }catch{ modal.err('No se pudo programar'); }
       }
@@ -206,7 +206,7 @@
 
   async function openFechas(modulo_id){
     try {
-      const r = await api(`../../backend/secretaria/clases_listar.php?aula_id=${$('#selAula').value}&modulo_id=${modulo_id}`);
+      const r = await api(`../backend/secretaria/clases_listar.php?aula_id=${$('#selAula').value}&modulo_id=${modulo_id}`);
       const rows = (r.items||[]).map(x=>`<tr><td class="px-3 py-2">Clase ${x.class_nro}</td><td class="px-3 py-2">${x.class_date}</td></tr>`).join('');
       modal.open({
         title:'Fechas programadas',

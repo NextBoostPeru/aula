@@ -34,7 +34,7 @@
     if (!aula || !selModulo) return;
     selModulo.innerHTML = '<option value="">Selecciona módulo...</option>';
     try {
-      const r = await api(`../../backend/secretaria/modulos_por_aula.php?aula_id=${aula}`);
+      const r = await api(`../backend/secretaria/modulos_por_aula.php?aula_id=${aula}`);
       (r.items||[]).forEach(m=>{
         selModulo.insertAdjacentHTML('beforeend',
           `<option value="${m.modulo_id}">[${m.titulo}] Módulo #${m.numero} - ${m.modulo_titulo}</option>`);
@@ -52,7 +52,7 @@
 
     tbl.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try {
-      const r = await api(`../../backend/secretaria/attendance_roster.php?aula_id=${aula}&modulo_id=${mid}&class_nro=${cls}`);
+      const r = await api(`../backend/secretaria/attendance_roster.php?aula_id=${aula}&modulo_id=${mid}&class_nro=${cls}`);
       const items = r.items || [];
       if (!items.length) { tbl.innerHTML = '<div class="text-gray-600">No hay alumnos con el módulo activo.</div>'; return; }
       const badge = (st) => {
@@ -103,7 +103,7 @@
           fd.append('status', payload.st);
           btn.disabled = true;
           try {
-            const r = await api('../../backend/secretaria/attendance_mark.php',{method:'POST', body:fd});
+            const r = await api('../backend/secretaria/attendance_mark.php',{method:'POST', body:fd});
             await cargarLista();
           } catch(e){ modal.err('No se pudo marcar'); btn.disabled=false; }
         });
@@ -125,7 +125,7 @@
               fd.append('modulo_id', $('#selModulo').value);
               fd.append('class_nro', $('#selClase').value);
               fd.append('status', 'asistio');
-              try{ await fetch('../../backend/secretaria/attendance_mark.php',{method:'POST', body:fd}); }catch{}
+              try{ await fetch('../backend/secretaria/attendance_mark.php',{method:'POST', body:fd}); }catch{}
             }
             modal.close(); modal.ok('Lista marcada como Asistió');
             await cargarLista();
