@@ -114,7 +114,7 @@ $$('#sidebarNav a[href*="?tab="]').forEach(a=>{
 (async function init(){
   try {
     const s = await api('../backend/session_check.php');
-    if(!s.ok || !s.auth || s.user.role!=='secretaria'){ location.href='../login.html'; return; }
+    if(!s.ok || !s.auth || s.user.role!=='secretaria'){ location.href='../index.html'; return; }
   } catch { location.href='../index.html'; return; }
 
   // 1) Cargar sedes

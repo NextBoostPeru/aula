@@ -711,17 +711,17 @@
     // Logout
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await fetch('../backend/logout.php'); } catch(e){}
-      window.location.href = './login.html';
+      window.location.href = './index.html';
     });
 
     // Check sesión y abrir cursos
     (async function init() {
       try {
         const s = await fetch('../backend/session_check.php');
-        if (!s.ok) return location.href = './login.html';
+        if (!s.ok) return location.href = './index.html';
         const data = await s.json();
-        if (!data.ok || !data.auth) return location.href = './login.html';
-      } catch(e) { return location.href = './login.html'; }
+        if (!data.ok || !data.auth) return location.href = './index.html';
+      } catch(e) { return location.href = './index.html'; }
       loadSection('cursos');
     })();
   </script>
