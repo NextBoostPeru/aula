@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+    
+<head>
+    <base href="/aula/">
+  <meta charset="utf-8" />
+  <title>Ingresar | Aula Virtual</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Feather Icons -->
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <main class="w-full max-w-md">
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600 text-white">
+          <i data-feather="layers"></i>
+        </span>
+        <div>
+          <h1 class="text-lg font-semibold">Aula Virtual</h1>
+          <p class="text-sm text-gray-500">Accede con tu DNI o correo</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="space-y-4" autocomplete="off" novalidate>
+        <!-- IDENTIFIER -->
+        <div>
+          <label class="text-sm text-gray-700">DNI o correo</label>
+          <div class="mt-1 relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+              <i data-feather="user"></i>
+            </span>
+            <input
+              id="identifier"
+              name="identifier"
+              type="text"
+              inputmode="email"
+              class="w-full pl-10 pr-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="ej. 12345678 o nombre@correo.com"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- PASSWORD -->
+        <div>
+          <label class="text-sm text-gray-700">Contraseña</label>
+          <div class="mt-1 relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+              <i data-feather="lock"></i>
+            </span>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              class="w-full pl-10 pr-10 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Tu contraseña"
+              required
+            />
+            <button type="button" id="togglePwd" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+              <i data-feather="eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- REMEMBER / LINKS -->
+        <div class="flex items-center justify-between">
+          <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+            <input id="remember" type="checkbox" class="rounded border-gray-300" />
+            Recordarme
+          </label>
+          <a href="#" class="text-sm text-indigo-600 hover:underline">¿Olvidaste tu contraseña?</a>
+        </div>
+
+        <!-- ERROR BOX -->
+        <div id="errorBox" class="hidden text-sm rounded-xl border border-red-200 bg-red-50 text-red-700 p-3"></div>
+
+        <!-- SUBMIT -->
+        <button id="btnLogin" type="submit" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60">
+          <i data-feather="log-in"></i> Ingresar
+        </button>
+      </form>
+
+      <p class="text-xs text-gray-500 mt-4">
+        Al continuar aceptas los términos y la política de privacidad.
+      </p>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 mt-4">
+      © <span id="yy"></span> Aula Virtual
+    </p>
+  </main>
+
+  <script>
+    feather.replace();
+    document.getElementById('yy').textContent = new Date().getFullYear();
+
+    const form = document.getElementById('loginForm');
+    const btn  = document.getElementById('btnLogin');
+    const err  = document.getElementById('errorBox');
+    const idEl = document.getElementById('identifier');
+    const pwEl = document.getElementById('password');
+    const remember = document.getElementById('remember');
+
+    // Mostrar/Ocultar contraseña
+    document.getElementById('togglePwd').addEventListener('click', () => {
+      const isPwd = pwEl.getAttribute('type') === 'password';
+      pwEl.setAttribute('type', isPwd ? 'text' : 'password');
+      // Cambia icono
+      const icon = isPwd ? 'eye-off' : 'eye';
+      document.querySelector('#togglePwd i').setAttribute('data-feather', icon);
+      feather.replace();
+    });
+
+    // Autorellenar si se marcó "Recordarme" antes
+    (function restoreRemember() {
+      const saved = localStorage.getItem('remember_login');
+      if (saved) {
+        try {
+          const obj = JSON.parse(saved);
+          if (obj.identifier) idEl.value = obj.identifier;
+          if (obj.remember) remember.checked = true;
+        } catch {}
+      }
+    })();
+
+    function showError(msg) {
+      err.textContent = msg || 'Ocurrió un error.';
+      err.classList.remove('hidden');
+    }
+    function clearError() {
+      err.classList.add('hidden');
+      err.textContent = '';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+
+      const identifier = idEl.value.trim();
+      const password   = pwEl.value;
+
+      if (!identifier || !password) {
+        showError('Completa usuario y contraseña');
+        return;
+      }
+
+      // Persistencia simple del identifier si marcó "Recordarme"
+      if (remember.checked) {
+        localStorage.setItem('remember_login', JSON.stringify({ identifier, remember: true }));
+      } else {
+        localStorage.removeItem('remember_login');
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i data-feather="loader" class="animate-spin"></i> Verificando...';
+      feather.replace();
+
+      try {
+        const res = await fetch('./backend/auth_login.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier, password })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          showError(data.msg || 'Credenciales inválidas');
+          btn.disabled = false;
+          btn.innerHTML = '<i data-feather="log-in"></i> Ingresar';
+          feather.replace();
+          return;
+        }
+
+        // Redirigir según el rol que ya viene del backend
+        window.location.href = data.redirect || './dashboard.html';
+      } catch (e2) {
+        showError('No se pudo conectar con el servidor');
+        btn.disabled = false;
+        btn.innerHTML = '<i data-feather="log-in"></i> Ingresar';
+        feather.replace();
+      }
+    });
+  </script>
+</body>
+</html>
