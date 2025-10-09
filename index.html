@@ -176,7 +176,7 @@
         }
 
         // Redirigir según el rol que ya viene del backend
-        window.location.href = data.redirect || './dashboard.html';
+        window.location.href = data.redirect || './alumno/';
       } catch (e2) {
         showError('No se pudo conectar con el servidor');
         btn.disabled = false;
