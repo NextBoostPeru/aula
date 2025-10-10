@@ -39,14 +39,24 @@
         const sede = escapeHTML(curso.sede ?? '-');
         const aula = escapeHTML(curso.aula ?? '-');
         const modulo = group.modulo || null;
-        const moduloTexto = modulo
-          ? `Módulo activo desde <span class="font-medium">${escapeHTML(modulo.start_date ?? '')}</span>`
-          : 'Sin módulo activo';
+        let moduloTexto = 'Sin módulo activo';
+        if (modulo) {
+          const inicio = modulo.start_date ? escapeHTML(modulo.start_date) : '';
+          if (modulo.estado === 'registrado') {
+            moduloTexto = inicio
+              ? `Asistencias registradas para el módulo desde <span class="font-medium">${inicio}</span>`
+              : 'Asistencias registradas para el módulo';
+          } else {
+            moduloTexto = inicio
+              ? `Módulo activo desde <span class="font-medium">${inicio}</span>`
+              : 'Módulo activo';
+          }
+        }
         const clases = Array.isArray(group.clases) ? group.clases : [];
 
         const rows = clases.map((clase) => {
           const nro = escapeHTML(clase.nro ?? '');
-          const fecha = escapeHTML(clase.date ?? '');
+          const fecha = clase.date ? escapeHTML(clase.date) : '-';
           return `
             <tr>
               <td class="px-3 py-2">Clase ${nro}</td>

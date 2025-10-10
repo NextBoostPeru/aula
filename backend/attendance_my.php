@@ -21,6 +21,7 @@ try {
   $st = $pdo->prepare("
     SELECT
       e.id AS enrollment_id,
+      ac.aula_id AS aula_id,
       c.id AS curso_id, c.titulo AS curso_titulo,
       s.nombre AS sede_nombre,
       a.nombre AS aula_nombre
@@ -45,7 +46,8 @@ try {
     $actives[(int)$r['enrollment_id']] = [
       'modulo_id'=>(int)$r['modulo_id'],
       'start_date'=>$r['start_date'],
-      'start_from_class'=>(int)$r['start_from_class']
+      'start_from_class'=>(int)$r['start_from_class'],
+      'estado'=>'activo'
     ];
   }
 
@@ -56,13 +58,38 @@ try {
     WHERE enrollment_id=:enr AND modulo_id=:mid
   ");
 
+  $qLastModule = $pdo->prepare("SELECT modulo_id FROM attendance WHERE enrollment_id=:enr ORDER BY marked_at DESC LIMIT 1");
+  $qSchedule = $pdo->prepare("
+    SELECT class_nro, class_date
+    FROM modulo_clase
+    WHERE aula_id=:a AND modulo_id=:m
+    ORDER BY class_nro ASC
+  ");
+
   $today = new DateTimeImmutable('today');
   $out = [];
 
   foreach ($enrolls as $e) {
     $enrId = (int)$e['enrollment_id'];
-    if (!isset($actives[$enrId])) {
-      // Sin módulo activo: devolvemos estructura vacía para la vista
+    $moduleInfo = $actives[$enrId] ?? null;
+    $moduleId = $moduleInfo['modulo_id'] ?? null;
+    $estadoModulo = $moduleInfo['estado'] ?? null;
+
+    if (!$moduleId) {
+      $qLastModule->execute([':enr'=>$enrId]);
+      $moduleId = (int)$qLastModule->fetchColumn();
+      if ($moduleId) {
+        $moduleInfo = [
+          'modulo_id'=>$moduleId,
+          'start_date'=>null,
+          'start_from_class'=>1,
+          'estado'=>'registrado'
+        ];
+        $estadoModulo = 'registrado';
+      }
+    }
+
+    if (!$moduleId) {
       $out[] = [
         'enrollment_id'=>$enrId,
         'curso'=>[
@@ -77,17 +104,33 @@ try {
       continue;
     }
 
-    $m = $actives[$enrId];
-    $start = $m['start_date'];
-    $dates = [
-      1 => $start,
-      2 => addDays($start, 7),
-      3 => addDays($start, 14),
-      4 => addDays($start, 21),
-    ];
+    $schedule = [];
+    $qSchedule->execute([':a'=>(int)$e['aula_id'], ':m'=>$moduleId]);
+    while ($row = $qSchedule->fetch(PDO::FETCH_ASSOC)) {
+      $schedule[(int)$row['class_nro']] = $row['class_date'];
+    }
+
+    $start = $moduleInfo['start_date'] ?? ($schedule[1] ?? null);
+    if (!$start) {
+      $first = $schedule ? reset($schedule) : null;
+      $start = $first ?: null;
+    }
+
+    $startFrom = $moduleInfo['start_from_class'] ?? 1;
+
+    $dates = [];
+    for ($i=1; $i<=4; $i++) {
+      if (isset($schedule[$i])) {
+        $dates[$i] = $schedule[$i];
+      } elseif ($start) {
+        $dates[$i] = addDays($start, ($i-1)*7);
+      } else {
+        $dates[$i] = null;
+      }
+    }
 
     // Cargar asistencias guardadas
-    $qAtt->execute([':enr'=>$enrId, ':mid'=>$m['modulo_id']]);
+    $qAtt->execute([':enr'=>$enrId, ':mid'=>$moduleId]);
     $saved = [];
     while ($r = $qAtt->fetch()) {
       $saved[(int)$r['class_nro']] = ['status'=>$r['status'], 'date'=>$r['class_date']];
@@ -97,13 +140,17 @@ try {
     $clases = [];
     for ($i=1; $i<=4; $i++) {
       $dstr = $dates[$i];
-      $d = new DateTimeImmutable($dstr);
-      if ($i < $m['start_from_class']) {
+      $dObj = $dstr ? new DateTimeImmutable($dstr) : null;
+      if ($i < $startFrom) {
         $state = 'no_aplica';
       } else if (isset($saved[$i])) {
         $state = $saved[$i]['status']; // asistio/tarde/falta/justificado
       } else {
-        $state = ($d <= $today) ? 'pendiente' : 'programada';
+        if ($dObj && $dObj <= $today) {
+          $state = 'pendiente';
+        } else {
+          $state = 'programada';
+        }
       }
       $clases[] = [
         'nro'=>$i,
@@ -121,9 +168,10 @@ try {
         'aula'=>$e['aula_nombre'],
       ],
       'modulo'=>[
-        'id'=>$m['modulo_id'],
+        'id'=>$moduleId,
         'start_date'=>$start,
-        'start_from_class'=>$m['start_from_class']
+        'start_from_class'=>$startFrom,
+        'estado'=>$estadoModulo ?? 'activo'
       ],
       'clases'=>$clases
     ];
