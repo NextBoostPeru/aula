@@ -71,7 +71,7 @@
             <input id="remember" type="checkbox" class="rounded border-gray-300" />
             Recordarme
           </label>
-          <a href="#" class="text-sm text-indigo-600 hover:underline">¿Olvidaste tu contraseña?</a>
+          <button type="button" id="linkRecover" class="text-sm text-indigo-600 hover:underline">¿Olvidaste tu contraseña?</button>
         </div>
 
         <!-- ERROR BOX -->
@@ -93,6 +93,70 @@
     </p>
   </main>
 
+  <!-- Recover password modal -->
+  <div
+    id="recoverOverlay"
+    class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4"
+    aria-hidden="true"
+  >
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+      <button
+        type="button"
+        id="recoverClose"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        aria-label="Cerrar"
+      >
+        <i data-feather="x"></i>
+      </button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600 text-white">
+          <i data-feather="unlock"></i>
+        </span>
+        <div>
+          <h2 class="text-lg font-semibold">Recuperar contraseña</h2>
+          <p class="text-sm text-gray-500">Te enviaremos un enlace si la cuenta existe.</p>
+        </div>
+      </div>
+
+      <form id="recoverForm" class="space-y-4" novalidate>
+        <div>
+          <label class="text-sm text-gray-700" for="recoverIdentifier">DNI o correo</label>
+          <input
+            id="recoverIdentifier"
+            name="identifier"
+            type="text"
+            class="mt-1 w-full px-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Ingresa tu identificador"
+            required
+          />
+        </div>
+
+        <div id="recoverMessage" class="hidden text-sm rounded-xl p-3"></div>
+
+        <div id="recoverLinkWrap" class="hidden text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+          <p class="font-medium">Enlace temporal generado para entornos de prueba:</p>
+          <a
+            id="recoverLinkPreview"
+            href="#"
+            target="_blank"
+            rel="noopener"
+            class="break-all underline"
+          ></a>
+          <p class="mt-2 text-[11px] text-indigo-500">Comparte este enlace únicamente con el titular de la cuenta.</p>
+        </div>
+
+        <button
+          type="submit"
+          id="recoverSubmit"
+          class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+        >
+          <i data-feather="mail"></i> Enviar instrucciones
+        </button>
+      </form>
+    </div>
+  </div>
+
   <script>
     feather.replace();
     document.getElementById('yy').textContent = new Date().getFullYear();
@@ -103,6 +167,15 @@
     const idEl = document.getElementById('identifier');
     const pwEl = document.getElementById('password');
     const remember = document.getElementById('remember');
+    const recoverLink = document.getElementById('linkRecover');
+    const recoverOverlay = document.getElementById('recoverOverlay');
+    const recoverClose = document.getElementById('recoverClose');
+    const recoverForm = document.getElementById('recoverForm');
+    const recoverInput = document.getElementById('recoverIdentifier');
+    const recoverMsg = document.getElementById('recoverMessage');
+    const recoverBtn = document.getElementById('recoverSubmit');
+    const recoverLinkWrap = document.getElementById('recoverLinkWrap');
+    const recoverLinkPreview = document.getElementById('recoverLinkPreview');
 
     // Mostrar/Ocultar contraseña
     document.getElementById('togglePwd').addEventListener('click', () => {
@@ -134,6 +207,91 @@
       err.classList.add('hidden');
       err.textContent = '';
     }
+
+    function openRecover() {
+      recoverOverlay.classList.remove('hidden');
+      recoverOverlay.setAttribute('aria-hidden', 'false');
+      recoverInput.focus();
+    }
+
+    function closeRecover() {
+      recoverOverlay.classList.add('hidden');
+      recoverOverlay.setAttribute('aria-hidden', 'true');
+      recoverForm.reset();
+      recoverMsg.classList.add('hidden');
+      recoverMsg.textContent = '';
+      recoverMsg.classList.remove('bg-red-50', 'text-red-700', 'border-red-200', 'bg-green-50', 'text-green-700', 'border-green-200', 'border');
+      recoverLinkWrap.classList.add('hidden');
+      recoverLinkPreview.removeAttribute('href');
+      recoverLinkPreview.textContent = '';
+      recoverBtn.disabled = false;
+      recoverBtn.innerHTML = '<i data-feather="mail"></i> Enviar instrucciones';
+      feather.replace();
+    }
+
+    recoverLink.addEventListener('click', openRecover);
+    recoverClose.addEventListener('click', closeRecover);
+    recoverOverlay.addEventListener('click', (ev) => {
+      if (ev.target === recoverOverlay) {
+        closeRecover();
+      }
+    });
+
+    recoverForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const identifier = recoverInput.value.trim();
+
+      recoverMsg.classList.add('hidden');
+      recoverMsg.textContent = '';
+      recoverLinkWrap.classList.add('hidden');
+      recoverLinkPreview.removeAttribute('href');
+      recoverLinkPreview.textContent = '';
+
+      if (!identifier) {
+        recoverMsg.textContent = 'Ingresa tu DNI o correo registrado';
+        recoverMsg.classList.remove('hidden');
+        recoverMsg.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-200');
+        return;
+      }
+
+      recoverBtn.disabled = true;
+      recoverBtn.innerHTML = '<i data-feather="loader" class="animate-spin"></i> Enviando...';
+      feather.replace();
+
+      try {
+        const response = await fetch('./backend/auth_recover_request.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.msg || 'No se pudo procesar la solicitud');
+        }
+
+        recoverMsg.textContent = payload.msg || 'Si la cuenta existe, enviaremos las instrucciones.';
+        recoverMsg.classList.remove('hidden');
+        recoverMsg.classList.remove('bg-red-50', 'text-red-700', 'border-red-200');
+        recoverMsg.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-200');
+
+        if (payload.reset_url) {
+          recoverLinkPreview.textContent = payload.reset_url;
+          recoverLinkPreview.setAttribute('href', payload.reset_url);
+          recoverLinkWrap.classList.remove('hidden');
+        }
+      } catch (errRecover) {
+        recoverMsg.textContent = errRecover.message || 'Ocurrió un error';
+        recoverMsg.classList.remove('hidden');
+        recoverMsg.classList.remove('bg-green-50', 'text-green-700', 'border-green-200');
+        recoverMsg.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-200');
+      } finally {
+        recoverBtn.disabled = false;
+        recoverBtn.innerHTML = '<i data-feather="mail"></i> Enviar instrucciones';
+        feather.replace();
+      }
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
