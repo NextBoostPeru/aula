@@ -39,13 +39,27 @@
         const sede = escapeHTML(curso.sede ?? '-');
         const aula = escapeHTML(curso.aula ?? '-');
         const modulo = group.modulo || null;
+
+        let moduloNombre = 'Sin módulo activo';
         let moduloTexto = 'Sin módulo activo';
         if (modulo) {
+          const partes = [];
+          if (typeof modulo.numero === 'number' && !Number.isNaN(modulo.numero)) {
+            partes.push(`Módulo ${escapeHTML(String(modulo.numero))}`);
+          }
+          if (!partes.length && modulo.id) {
+            partes.push(`Módulo ${escapeHTML(String(modulo.id))}`);
+          }
+          if (modulo.titulo) {
+            partes.push(escapeHTML(modulo.titulo));
+          }
+          moduloNombre = partes.length ? partes.join(' · ') : 'Módulo';
+
           const inicio = modulo.start_date ? escapeHTML(modulo.start_date) : '';
           if (modulo.estado === 'registrado') {
             moduloTexto = inicio
-              ? `Asistencias registradas para el módulo desde <span class="font-medium">${inicio}</span>`
-              : 'Asistencias registradas para el módulo';
+              ? `Asistencias registradas desde <span class="font-medium">${inicio}</span>`
+              : 'Asistencias registradas del módulo';
           } else {
             moduloTexto = inicio
               ? `Módulo activo desde <span class="font-medium">${inicio}</span>`
@@ -70,7 +84,8 @@
             <div>
               <h3 class="text-base font-semibold">${cursoTitulo}</h3>
               <div class="text-xs text-gray-500">Sede: ${sede} · Aula: ${aula}</div>
-              <div class="text-xs text-gray-500 mt-1">${moduloTexto}</div>
+              <div class="text-sm font-medium text-gray-700 mt-2">${moduloNombre}</div>
+              <div class="text-xs text-gray-500">${moduloTexto}</div>
             </div>
             <div class="overflow-auto">
               <table class="min-w-full text-sm">
