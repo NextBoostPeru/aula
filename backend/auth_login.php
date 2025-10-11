@@ -73,7 +73,7 @@ $_SESSION['user'] = [
 ];
 
 // Redirección según rol
-$redirect = './dashboard.html'; // alumno por defecto
+$redirect = './alumno/'; // alumno por defecto
 switch ($user['role']) {
   case 'secretaria': $redirect = './secretaria/'; break;
   case 'docente':    $redirect = './dashboard_docente.html';    break;

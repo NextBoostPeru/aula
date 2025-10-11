@@ -121,7 +121,7 @@
     }
 
     const qs = new URLSearchParams({ fecha: f, sede_id: SEDE_ID });
-    const r = await api(`../../backend/secretaria/caja_listar.php?${qs.toString()}`);
+    const r = await api(`../backend/secretaria/caja_listar.php?${qs.toString()}`);
 
     const tb = $('#tbodyCaja');
     const items = r.items || [];
@@ -170,7 +170,7 @@
     const y = $('#repAnio').value;
     const m = $('#repMes').value;
     const qs = new URLSearchParams({ year:y, month:m, sede_id: SEDE_ID });
-    const r = await api(`../../backend/secretaria/cierres_listar.php?${qs.toString()}`);
+    const r = await api(`../backend/secretaria/cierres_listar.php?${qs.toString()}`);
     const items = r.items || [];
     const tb = $('#tbodyReportes');
     if (!items.length) {
@@ -196,7 +196,7 @@
   $('#btnExportar').addEventListener('click', ()=>{
     if (!SEDE_ID) return modal.err('No hay sede seleccionada.');
     const f = $('#fechaCaja').value || today;
-    const url = `../../backend/secretaria/caja_exportar.php?fecha=${encodeURIComponent(f)}&sede_id=${SEDE_ID}`;
+    const url = `../backend/secretaria/caja_exportar.php?fecha=${encodeURIComponent(f)}&sede_id=${SEDE_ID}`;
     window.open(url, '_blank');
   });
 
@@ -220,7 +220,7 @@
         fd.append('fecha', f);
         fd.append('sede_id', String(SEDE_ID));
         try{
-          await api(`../../backend/secretaria/caja_cerrar.php`, { method:'POST', body: fd });
+          await api(`../backend/secretaria/caja_cerrar.php`, { method:'POST', body: fd });
           modal.close(); modal.ok('Cierre generado');
           await cargarCaja();
           await cargarReportes();

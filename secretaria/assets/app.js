@@ -1,12 +1,104 @@
 // utilidades
+const ABSOLUTE_URL_REGEX = /^(?:[a-z]+:)?\/\//i;
+const API_BASE_URL = new URL('../backend/', window.location.href);
+const SECRETARIA_API_BASE_URL = new URL('./secretaria/', API_BASE_URL);
+
 window.$ = (sel, ctx=document) => ctx.querySelector(sel);
 window.$$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
-window.api = async (url, opt={}) => {
-  const r = await fetch(url, opt);
-  const t = await r.text();
-  if (!r.ok) throw new Error(t);
-  try { return JSON.parse(t); } catch { throw new Error(t); }
+
+function normalizeApiInput(input, base){
+  if (input instanceof URL) return input;
+  if (typeof input === 'string'){
+    if (ABSOLUTE_URL_REGEX.test(input)){
+      throw new Error('Las peticiones deben permanecer en el mismo origen.');
+    }
+    const normalized = input.replace(/^\/+/, '');
+    return new URL(normalized, base || window.location.href);
+  }
+  throw new TypeError('URL de API inválida');
+}
+
+function withDefaultHeaders(options){
+  const headers = new Headers(options.headers || {});
+  if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json, text/plain, */*');
+  return headers;
+}
+
+window.api = async (input, opt={}) => {
+  const url = normalizeApiInput(input, window.location.href);
+  if (url.origin !== window.location.origin){
+    throw new Error('Solo se permiten peticiones al mismo origen.');
+  }
+
+  const options = { ...opt };
+  options.method = options.method || 'GET';
+  options.credentials = options.credentials || 'include';
+  options.headers = withDefaultHeaders(options);
+
+  const response = await fetch(url.toString(), options);
+  const bodyText = await response.text();
+  if (!response.ok){
+    throw new Error(bodyText || response.statusText || 'Error en la solicitud');
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')){
+    try {
+      return JSON.parse(bodyText);
+    } catch {
+      throw new Error('La respuesta JSON no es válida.');
+    }
+  }
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return bodyText;
+  }
 };
+
+window.apiSecretaria = async (endpoint, opt={}) => {
+  const { searchParams, ...options } = opt;
+  const url = normalizeApiInput(endpoint, SECRETARIA_API_BASE_URL);
+  if (searchParams && typeof searchParams === 'object'){
+    Object.entries(searchParams).forEach(([key, value])=>{
+      if (value === undefined || value === null) return;
+      url.searchParams.set(key, value);
+    });
+  }
+  return api(url, options);
+};
+
+const HTML_ESCAPE_LOOKUP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  '\'': '&#39;'
+};
+
+window.escapeHTML = (value) => {
+  const str = value == null ? '' : String(value);
+  return str.replace(/[&<>"']/g, (ch) => HTML_ESCAPE_LOOKUP[ch]);
+};
+
+window.encodeDataAttr = (payload) => {
+  try {
+    return encodeURIComponent(JSON.stringify(payload || {}));
+  } catch {
+    return '';
+  }
+};
+
+window.decodeDataAttr = (value) => {
+  if (!value) return null;
+  try {
+    return JSON.parse(decodeURIComponent(value));
+  } catch {
+    return null;
+  }
+};
+
 window.modal = {
   open({title, bodyHTML, primaryLabel, onPrimary}){
     $('#modalTitle').textContent = title || 'Mensaje';
@@ -20,8 +112,18 @@ window.modal = {
     feather.replace();
   },
   close(){ const m=$('#modal'); m.classList.add('hidden'); m.classList.remove('flex'); },
-  ok(msg){ this.open({title:'Listo', bodyHTML:`<div class="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">${msg||'OK'}</div>`}); },
-  err(msg){ this.open({title:'Error', bodyHTML:`<div class="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">${msg||'Ocurrió un error'}</div>`}); }
+  ok(msg){
+    this.open({
+      title:'Listo',
+      bodyHTML:`<div class="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">${escapeHTML(msg||'OK')}</div>`
+    });
+  },
+  err(msg){
+    this.open({
+      title:'Error',
+      bodyHTML:`<div class="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">${escapeHTML(msg||'Ocurrió un error')}</div>`
+    });
+  }
 };
 
 // ------- Persistencia de contexto (Sede/Aula/Tab) -------
@@ -45,21 +147,43 @@ function notifyContext(){
 async function loadSedes(){
   const selSede = $('#selSede');
   if (!selSede) return;
-  selSede.innerHTML='<option value="">Selecciona...</option>';
+  selSede.innerHTML='';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Selecciona...';
+  selSede.appendChild(defaultOpt);
   try {
-    const r = await api('../backend/secretaria/sedes_mias.php');
-    (r.sedes||[]).forEach(s=>selSede.insertAdjacentHTML('beforeend', `<option value="${s.id}">${s.nombre}</option>`));
-  } catch {}
+    const r = await apiSecretaria('sedes_mias.php');
+    (r.sedes||[]).forEach((s)=>{
+      const opt = document.createElement('option');
+      opt.value = s.id ?? '';
+      opt.textContent = escapeHTML(s.nombre ?? '');
+      selSede.appendChild(opt);
+    });
+  } catch (error) {
+    console.error('No se pudieron cargar las sedes', error);
+  }
 }
 
 async function loadAulas(){
   const selAula = $('#selAula'); if(!selAula) return;
-  selAula.innerHTML='<option value="">Selecciona...</option>';
+  selAula.innerHTML='';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Selecciona...';
+  selAula.appendChild(defaultOpt);
   const sede = $('#selSede')?.value; if(!sede) return;
   try {
-    const r=await api(`../backend/secretaria/aulas_por_sede.php?sede_id=${sede}`);
-    (r.aulas||[]).forEach(a=>selAula.insertAdjacentHTML('beforeend', `<option value="${a.id}">${a.nombre}</option>`));
-  } catch {}
+    const r = await apiSecretaria('aulas_por_sede.php', { searchParams: { sede_id: sede } });
+    (r.aulas||[]).forEach((a)=>{
+      const opt = document.createElement('option');
+      opt.value = a.id ?? '';
+      opt.textContent = escapeHTML(a.nombre ?? '');
+      selAula.appendChild(opt);
+    });
+  } catch (error) {
+    console.error('No se pudieron cargar las aulas', error);
+  }
 }
 
 function updateSidebarEnabled(){
@@ -114,7 +238,7 @@ $$('#sidebarNav a[href*="?tab="]').forEach(a=>{
 (async function init(){
   try {
     const s = await api('../backend/session_check.php');
-    if(!s.ok || !s.auth || s.user.role!=='secretaria'){ location.href='../login.html'; return; }
+    if(!s.ok || !s.auth || s.user.role!=='secretaria'){ location.href='../index.html'; return; }
   } catch { location.href='../index.html'; return; }
 
   // 1) Cargar sedes

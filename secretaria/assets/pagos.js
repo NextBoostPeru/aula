@@ -37,7 +37,7 @@
     if (!aula || !sel) return;
     sel.innerHTML = '<option value="">Selecciona alumno...</option>';
     try {
-      const r = await api(`../../backend/secretaria/estudiantes_por_aula.php?aula_id=${encodeURIComponent(aula)}`);
+      const r = await api(`../backend/secretaria/estudiantes_por_aula.php?aula_id=${encodeURIComponent(aula)}`);
       (r.items || []).forEach(a => {
         sel.insertAdjacentHTML(
           'beforeend',
@@ -55,7 +55,7 @@
 
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try {
-      const res = await fetch(`../../backend/secretaria/pagos_estado_alumno.php?enrollment_id=${encodeURIComponent(enr)}`);
+      const res = await fetch(`../backend/secretaria/pagos_estado_alumno.php?enrollment_id=${encodeURIComponent(enr)}`);
       const txt = await res.text();
       let r; try { r = JSON.parse(txt); } catch {
         box.innerHTML = `<div class="text-red-600">Respuesta no válida:<pre class="text-xs whitespace-pre-wrap">${txt}</pre></div>`;
@@ -152,7 +152,7 @@
           // Módulos del curso de esta matrícula
           let mods = [];
           try {
-            const rmods = await api(`../../backend/secretaria/enrollment_modulos.php?enrollment_id=${encodeURIComponent(enrollmentId)}`);
+            const rmods = await api(`../backend/secretaria/enrollment_modulos.php?enrollment_id=${encodeURIComponent(enrollmentId)}`);
             if (rmods.ok) mods = rmods.items || [];
           } catch {}
           const modOptions = mods.length
@@ -222,7 +222,7 @@
               fd.append('quota_id', qid);
 
               try {
-                await api('../../backend/secretaria/pagos_marcar_pagado.php', { method: 'POST', body: fd });
+                await api('../backend/secretaria/pagos_marcar_pagado.php', { method: 'POST', body: fd });
                 modal.close(); modal.ok('Pago registrado');
                 await cargarPagos();
               } catch (e) {
@@ -284,7 +284,7 @@
         const fd = new FormData(form);
         fd.append('enrollment_id', $('#selAlumno')?.value || '');
         try {
-          await api('../../backend/secretaria/pagos_crear_cuota.php', { method: 'POST', body: fd });
+          await api('../backend/secretaria/pagos_crear_cuota.php', { method: 'POST', body: fd });
           modal.close(); modal.ok('Cuota creada'); await cargarPagos();
         } catch { modal.err('No se pudo crear la cuota'); }
       }

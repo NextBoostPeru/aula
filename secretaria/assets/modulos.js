@@ -9,7 +9,7 @@
 
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try{
-      const r = await api(`../../backend/secretaria/modulos_por_aula.php?aula_id=${aula}`);
+      const r = await apiSecretaria('modulos_por_aula.php', { searchParams: { aula_id: aula } });
       const items = r.items || [];
 
       const rows = items.map(m => {
@@ -23,17 +23,17 @@
         };
         return `
         <tr>
-          <td class="px-3 py-2">${m.curso_id}</td>
-          <td class="px-3 py-2">${m.titulo}</td>
-          <td class="px-3 py-2">#${m.numero ?? '-'}</td>
-          <td class="px-3 py-2">${m.modulo_titulo ?? '-'}</td>
-          <td class="px-3 py-2">${dur} días</td>
+          <td class="px-3 py-2">${escapeHTML(m.curso_id ?? '')}</td>
+          <td class="px-3 py-2">${escapeHTML(m.titulo ?? '')}</td>
+          <td class="px-3 py-2">#${escapeHTML(m.numero ?? '-')}</td>
+          <td class="px-3 py-2">${escapeHTML(m.modulo_titulo ?? '-')}</td>
+          <td class="px-3 py-2">${escapeHTML(dur)} días</td>
           <td class="px-3 py-2">
             <div class="flex flex-wrap gap-2">
-              <button class="px-2 py-1 rounded-lg border text-xs" data-prog="${m.modulo_id}">Programar</button>
-              <button class="px-2 py-1 rounded-lg border text-xs" data-show="${m.modulo_id}">Ver fechas</button>
-              <button class="px-2 py-1 rounded-lg border text-xs text-indigo-600" data-edit='${JSON.stringify(dataEdit)}'>Editar</button>
-              <button class="px-2 py-1 rounded-lg border text-xs text-red-600" data-del="${m.modulo_id}">Eliminar</button>
+              <button class="px-2 py-1 rounded-lg border text-xs" data-prog="${escapeHTML(m.modulo_id ?? '')}">Programar</button>
+              <button class="px-2 py-1 rounded-lg border text-xs" data-show="${escapeHTML(m.modulo_id ?? '')}">Ver fechas</button>
+              <button class="px-2 py-1 rounded-lg border text-xs text-indigo-600" data-edit="${encodeDataAttr(dataEdit)}">Editar</button>
+              <button class="px-2 py-1 rounded-lg border text-xs text-red-600" data-del="${escapeHTML(m.modulo_id ?? '')}">Eliminar</button>
             </div>
           </td>
         </tr>`;
@@ -59,7 +59,8 @@
 
       bindRowActions();
     }catch(e){
-      box.innerHTML = `<div class="text-red-600 text-sm">No se pudo cargar módulos.<br><span class="text-xs">${e.message||e}</span></div>`;
+      console.error('No se pudo cargar la lista de módulos', e);
+      box.innerHTML = `<div class="text-red-600 text-sm">No se pudo cargar módulos.<br><span class="text-xs">${escapeHTML(e.message||e)}</span></div>`;
     }
   }
 
@@ -70,9 +71,11 @@
 
     let cursos = [];
     try {
-      const r = await api(`../../backend/secretaria/aula_cursos.php?aula_id=${aulaId}`);
+      const r = await apiSecretaria('aula_cursos.php', { searchParams: { aula_id: aulaId } });
       cursos = r.items || [];
-    } catch {}
+    } catch (error) {
+      console.error('No se pudieron obtener los cursos del aula', error);
+    }
     if(!cursos.length) return modal.err('Este aula no tiene cursos configurados.');
 
     modal.open({
@@ -82,7 +85,7 @@
           <div>
             <label class="text-sm text-gray-600">Curso del aula</label>
             <select name="aula_curso_id" id="fmAulaCurso" class="w-full mt-1 px-3 py-2 border rounded-xl" required>
-              ${cursos.map(c=>`<option value="${c.aula_curso_id}">${c.titulo}</option>`).join('')}
+              ${cursos.map(c=>`<option value="${escapeHTML(c.aula_curso_id ?? '')}">${escapeHTML(c.titulo ?? '')}</option>`).join('')}
             </select>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -111,22 +114,29 @@
       onPrimary: async ()=>{
         const fd = new FormData($('#formModulo'));
         try{
-          const resp = await api('../../backend/secretaria/modulo_crear.php', { method:'POST', body:fd });
+          const resp = await apiSecretaria('modulo_crear.php', { method:'POST', body:fd });
           modal.close(); modal.ok(resp.msg || 'Módulo creado');
           await list();
-        }catch(err){ modal.err('No se pudo crear el módulo'); }
+        }catch(err){
+          console.error('No se pudo crear el módulo', err);
+          modal.err('No se pudo crear el módulo');
+        }
       }
     });
   }
 
   // --------- Editar ----------
   function openEdit(data){
-    const mod = typeof data === 'string' ? JSON.parse(data) : data;
+    const payload = typeof data === 'string' ? decodeDataAttr(data) : data;
+    if(!payload) return;
+    const mod = payload;
+    const numeroVal = mod.numero ?? '';
+    const duracionVal = (mod.duracion_dias != null && mod.duracion_dias !== '') ? mod.duracion_dias : 28;
     modal.open({
       title: 'Editar módulo',
       bodyHTML: `
         <form id="formEditModulo" class="space-y-3">
-          <input type="hidden" name="modulo_id" value="${mod.modulo_id}">
+          <input type="hidden" name="modulo_id" value="${escapeHTML(mod.modulo_id ?? '')}">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="text-sm text-gray-600">Título</label>
@@ -134,13 +144,13 @@
             </div>
             <div>
               <label class="text-sm text-gray-600">Número</label>
-              <input type="number" name="numero" value="${Number(mod.numero||'')||''}" class="w-full mt-1 px-3 py-2 border rounded-xl">
+              <input type="number" name="numero" value="${escapeHTML(numeroVal)}" class="w-full mt-1 px-3 py-2 border rounded-xl">
             </div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="text-sm text-gray-600">Duración (días)</label>
-              <input type="number" name="duracion_dias" value="${Number(mod.duracion_dias||28)}" class="w-full mt-1 px-3 py-2 border rounded-xl">
+              <input type="number" name="duracion_dias" value="${escapeHTML(duracionVal)}" class="w-full mt-1 px-3 py-2 border rounded-xl">
             </div>
             <div>
               <label class="text-sm text-gray-600">Descripción</label>
@@ -153,14 +163,14 @@
       onPrimary: async ()=>{
         const fd = new FormData($('#formEditModulo'));
         try{
-          const res = await fetch('../../backend/secretaria/modulo_editar.php', { method:'POST', body:fd });
-          const txt = await res.text();
-          let d;
-          try { d = JSON.parse(txt); } catch { throw new Error('Respuesta no válida del servidor:\n'+txt); }
-          if (!res.ok || !d.ok) throw new Error(d.msg || ('HTTP '+res.status));
+          const d = await apiSecretaria('modulo_editar.php', { method:'POST', body:fd });
+          if (!d.ok) throw new Error(d.msg || 'No se pudo editar el módulo');
           modal.close(); modal.ok(d.msg || 'Módulo actualizado');
           await list();
-        }catch(e){ modal.err(e.message || 'No se pudo editar el módulo'); }
+        }catch(e){
+          console.error('No se pudo editar el módulo', e);
+          modal.err(e.message || 'No se pudo editar el módulo');
+        }
       }
     });
   }
@@ -174,10 +184,13 @@
       onPrimary: async ()=>{
         const fd = new FormData(); fd.append('modulo_id', id);
         try{
-          const r = await api('../../backend/secretaria/modulo_eliminar.php', { method:'POST', body:fd });
+          const r = await apiSecretaria('modulo_eliminar.php', { method:'POST', body:fd });
           modal.close(); modal.ok(r.msg || 'Módulo eliminado');
           await list();
-        }catch(e){ modal.err('No se pudo eliminar el módulo'); }
+        }catch(e){
+          console.error('No se pudo eliminar el módulo', e);
+          modal.err('No se pudo eliminar el módulo');
+        }
       }
     });
   }
@@ -197,17 +210,20 @@
         fd.append('modulo_id', modulo_id);
         fd.append('start_date', $('#startDate').value);
         try{
-          const r = await api('../../backend/secretaria/programar_clases.php', { method:'POST', body:fd });
+          const r = await apiSecretaria('programar_clases.php', { method:'POST', body:fd });
           modal.close(); modal.ok(r.msg || 'Clases programadas');
-        }catch{ modal.err('No se pudo programar'); }
+        }catch(error){
+          console.error('No se pudieron programar clases', error);
+          modal.err('No se pudo programar');
+        }
       }
     });
   }
 
   async function openFechas(modulo_id){
     try {
-      const r = await api(`../../backend/secretaria/clases_listar.php?aula_id=${$('#selAula').value}&modulo_id=${modulo_id}`);
-      const rows = (r.items||[]).map(x=>`<tr><td class="px-3 py-2">Clase ${x.class_nro}</td><td class="px-3 py-2">${x.class_date}</td></tr>`).join('');
+      const r = await apiSecretaria('clases_listar.php', { searchParams: { aula_id: $('#selAula').value, modulo_id } });
+      const rows = (r.items||[]).map(x=>`<tr><td class="px-3 py-2">Clase ${escapeHTML(x.class_nro)}</td><td class="px-3 py-2">${escapeHTML(x.class_date)}</td></tr>`).join('');
       modal.open({
         title:'Fechas programadas',
         bodyHTML:`<div class="overflow-auto">
@@ -217,12 +233,18 @@
           </table>
         </div>`
       });
-    } catch(e) { modal.err('No se pudo cargar'); }
+    } catch(e) {
+      console.error('No se pudieron cargar las fechas del módulo', e);
+      modal.err('No se pudo cargar');
+    }
   }
 
   function bindRowActions(){
     $$('#tablaModulos [data-edit]').forEach(b=>{
-      b.addEventListener('click', ()=> openEdit(b.getAttribute('data-edit')));
+      b.addEventListener('click', ()=> {
+        const payload = decodeDataAttr(b.dataset.edit);
+        if (payload) openEdit(payload);
+      });
     });
     $$('#tablaModulos [data-del]').forEach(b=>{
       b.addEventListener('click', ()=> openDelete(b.getAttribute('data-del')));
@@ -233,10 +255,6 @@
     $$('#tablaModulos [data-show]').forEach(b=>{
       b.addEventListener('click', ()=> openFechas(b.getAttribute('data-show')));
     });
-  }
-
-  function escapeHTML(s){
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   btnAdd?.addEventListener('click', openAdd);
