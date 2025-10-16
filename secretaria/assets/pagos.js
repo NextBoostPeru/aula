@@ -15,6 +15,34 @@
     return isJSON ? JSON.parse(text) : text;
   };
 
+  const ALUMNO_TODOS = '__ALL__';
+  const pagosTodosState = { page: 1, perPage: 10 };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return '-';
+    try {
+      // Compatibilidad con "YYYY-MM-DD HH:MM:SS"
+      const normalized = iso.replace(' ', 'T');
+      const date = new Date(normalized);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleString('es-PE', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) { return iso; }
+  };
+
+  const setDisabled = (el, disabled=true) => {
+    if (!el) return;
+    if (disabled) {
+      el.setAttribute('disabled', 'disabled');
+      el.classList.add('opacity-60', 'cursor-not-allowed');
+    } else {
+      el.removeAttribute('disabled');
+      el.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  };
+
   const rootHTML = `
     <div class="bg-white rounded-2xl shadow p-4 space-y-4">
       <div class="flex flex-wrap items-end gap-3">
@@ -35,7 +63,9 @@
     const aula = $('#selAula')?.value;
     const sel  = $('#selAlumno');
     if (!aula || !sel) return;
-    sel.innerHTML = '<option value="">Selecciona alumno...</option>';
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Selecciona alumno...</option>' +
+                    `<option value="${ALUMNO_TODOS}">Todos</option>`;
     try {
       const r = await api(`../backend/secretaria/estudiantes_por_aula.php?aula_id=${encodeURIComponent(aula)}`);
       (r.items || []).forEach(a => {
@@ -45,13 +75,32 @@
         );
       });
     } catch {}
+    // Restaurar selección si sigue disponible
+    if (prev) {
+      const opt = sel.querySelector(`option[value="${prev}"]`);
+      sel.value = opt ? prev : '';
+    }
+    updateNuevaCuotaState();
   }
 
   // Pintar estado de pagos
-  async function cargarPagos() {
+  async function cargarPagos(page) {
     const enr = $('#selAlumno')?.value;
     const box = $('#pagosBox');
-    if (!enr) { box.innerHTML = '<div class="text-red-600">Selecciona un alumno.</div>'; return; }
+    const aula = $('#selAula')?.value;
+
+    const targetPage = Number.isFinite(page) ? page : 1;
+    updateNuevaCuotaState();
+
+    if (!enr) {
+      box.innerHTML = '<div class="text-red-600">Selecciona un alumno.</div>';
+      return;
+    }
+
+    if (enr === ALUMNO_TODOS) {
+      await cargarPagosTodos(targetPage, aula);
+      return;
+    }
 
     box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando…</div>`;
     try {
@@ -251,12 +300,117 @@
     }
   }
 
+  async function cargarPagosTodos(page = 1, aulaId) {
+    const box = $('#pagosBox');
+    const aula = aulaId || $('#selAula')?.value;
+    if (!aula) {
+      box.innerHTML = '<div class="text-red-600">Selecciona un aula primero.</div>';
+      return;
+    }
+
+    pagosTodosState.page = page;
+    box.innerHTML = `<div class="bg-white rounded-xl border p-4 text-gray-600">Cargando pagos...</div>`;
+
+    try {
+      const params = new URLSearchParams({
+        aula_id: aula,
+        page: pagosTodosState.page,
+        per_page: pagosTodosState.perPage
+      });
+      const r = await api(`../backend/secretaria/pagos_historial.php?${params.toString()}`);
+      if (!r.ok) throw new Error(r.msg || 'No se pudo cargar');
+
+      const items = r.items || [];
+      const meta  = r.meta || {};
+      const totalPages = Math.max(1, parseInt(meta.pages || 1, 10));
+      const currentPage = Math.min(Math.max(1, parseInt(meta.page || 1, 10)), totalPages);
+      const totalItems = parseInt(meta.total || items.length || 0, 10);
+
+      const rows = items.length
+        ? items.map(it => {
+            const alumno = it.student?.name || '-';
+            const dni = it.student?.dni || '';
+            const curso = it.curso || '-';
+            const cuota = it.cuota_label || it.cuota_no || it.quota || '-';
+            const ref = it.reference ? `<code class="text-xs">${it.reference}</code>` : '<span class="text-xs text-gray-400">—</span>';
+            const metodo = (it.method || '').toUpperCase();
+            return `
+              <tr>
+                <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${formatDateTime(it.paid_at)}</td>
+                <td class="px-3 py-2">
+                  <div class="font-medium">${alumno}</div>
+                  ${dni ? `<div class="text-xs text-gray-500">DNI ${dni}</div>` : ''}
+                </td>
+                <td class="px-3 py-2">${curso}</td>
+                <td class="px-3 py-2 text-center">${cuota}</td>
+                <td class="px-3 py-2 font-semibold">S/ ${Number(it.amount || 0).toFixed(2)}</td>
+                <td class="px-3 py-2">${metodo || '-'}</td>
+                <td class="px-3 py-2">${ref}</td>
+              </tr>`;
+          }).join('')
+        : '<tr><td colspan="7" class="px-3 py-4 text-center text-gray-500">Sin pagos registrados.</td></tr>';
+
+      const pager = `
+        <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600">
+          <div>Mostrando ${items.length} de ${totalItems} pagos</div>
+          <div class="inline-flex items-center gap-2">
+            <button type="button" class="px-3 py-1 border rounded-lg ${currentPage<=1?'opacity-50 cursor-not-allowed':'hover:bg-gray-50'}" data-page="${currentPage-1}" ${currentPage<=1?'disabled':''}>Anterior</button>
+            <span>Pag. ${currentPage} / ${totalPages}</span>
+            <button type="button" class="px-3 py-1 border rounded-lg ${currentPage>=totalPages?'opacity-50 cursor-not-allowed':'hover:bg-gray-50'}" data-page="${currentPage+1}" ${currentPage>=totalPages?'disabled':''}>Siguiente</button>
+          </div>
+        </div>`;
+
+      box.innerHTML = `
+        <div class="space-y-4">
+          <h3 class="font-semibold">Historial de pagos del aula</h3>
+          <div class="overflow-auto bg-white rounded-2xl shadow">
+            <table class="min-w-full text-sm">
+              <thead class="border-b">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Fecha</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Alumno</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Curso</th>
+                  <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">Cuota</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Monto</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Método</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Referencia</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">${rows}</tbody>
+            </table>
+          </div>
+          ${totalItems > 0 ? pager : ''}
+        </div>`;
+
+      box.querySelectorAll('[data-page]').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const p = parseInt(btn.getAttribute('data-page'), 10);
+          if (!Number.isFinite(p) || btn.hasAttribute('disabled')) return;
+          cargarPagosTodos(p, aula);
+        });
+      });
+
+    } catch (e) {
+      box.innerHTML = `<div class="text-red-600">No se pudo cargar los pagos del aula.</div>`;
+    }
+  }
+
+  function updateNuevaCuotaState() {
+    const enr = $('#selAlumno')?.value || '';
+    const btn = $('#btnNuevaCuota');
+    setDisabled(btn, !enr || enr === ALUMNO_TODOS);
+  }
+
   // Montaje UI
   $('#content').innerHTML = rootHTML;
   if (window.feather) feather.replace();
 
   // Acciones
-  $('#btnVer')?.addEventListener('click', cargarPagos);
+  $('#btnVer')?.addEventListener('click', () => cargarPagos());
+  $('#selAlumno')?.addEventListener('change', () => {
+    updateNuevaCuotaState();
+  });
 
   $('#btnNuevaCuota')?.addEventListener('click', () => {
     const enr = $('#selAlumno')?.value;
