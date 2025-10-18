@@ -20,7 +20,7 @@ $title = 'Panel de Secretaría';
         </span>
         <h1 class="text-lg font-semibold"><?= htmlspecialchars($title) ?></h1>
       </div>
-      <form action="../../backend/logout.php" method="post">
+      <form action="../backend/logout.php" method="post">
         <button class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white">
           <i data-feather="log-out"></i> Salir
         </button>

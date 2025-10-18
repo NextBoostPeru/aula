@@ -171,7 +171,7 @@
       sel.innerHTML = '<option value="">Cargando…</option>';
       if (!sede) { sel.innerHTML = '<option value="">Selecciona sede…</option>'; return; }
       try{
-        const r = await api(`../../backend/secretaria/aulas_cursos_por_sede.php?sede_id=${encodeURIComponent(sede)}`);
+        const r = await api(`../backend/secretaria/aulas_cursos_por_sede.php?sede_id=${encodeURIComponent(sede)}`);
         const items = r.items || [];
         sel.innerHTML = '<option value="">Selecciona…</option>';
         items.forEach(it=>{
@@ -204,7 +204,7 @@
       ev.preventDefault();
       const fd = new FormData(ev.target);
       try{
-        await api(`../../backend/secretaria/matriculas_crear.php`, { method:'POST', body: fd });
+        await api(`../backend/secretaria/matriculas_crear.php`, { method:'POST', body: fd });
         modal.ok('Matrícula registrada');
         renderLista(); // volver a la lista
       }catch(e){

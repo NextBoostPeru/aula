@@ -23,7 +23,7 @@
     if(!aula || !sel) return;
     sel.innerHTML = '<option value="">Selecciona alumno...</option>';
     try{
-      const r = await api(`../../backend/secretaria/estudiantes_por_aula.php?aula_id=${aula}`);
+      const r = await api(`../backend/secretaria/estudiantes_por_aula.php?aula_id=${aula}`);
       (r.items||[]).forEach(a=>{
         sel.insertAdjacentHTML('beforeend', `<option value="${a.user_id}">${a.name} — DNI ${a.dni}</option>`);
       });
@@ -70,7 +70,7 @@
       onSubmit: async ()=>{
         const f = $('#formNoti'); const fd = new FormData(f); fd.append('user_id', uid);
         try{
-          await api('../../backend/secretaria/notificar_usuario.php',{method:'POST', body:fd});
+          await api('../backend/secretaria/notificar_usuario.php',{method:'POST', body:fd});
           modal.close(); modal.ok('Notificación enviada');
         }catch(e){ modal.err('No se pudo enviar'); }
       }
@@ -85,7 +85,7 @@
       onSubmit: async ()=>{
         const f = $('#formNoti'); const fd = new FormData(f); fd.append('aula_id', aula);
         try{
-          await api('../../backend/secretaria/notificar_aula.php',{method:'POST', body:fd});
+          await api('../backend/secretaria/notificar_aula.php',{method:'POST', body:fd});
           modal.close(); modal.ok('Notificación enviada');
         }catch(e){ modal.err('No se pudo enviar'); }
       }
