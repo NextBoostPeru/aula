@@ -24,6 +24,9 @@
         <button id="btnMarcarTodos" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-gray-50">
           Marcar todo Asistió
         </button>
+        <button id="btnResetClase" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-red-600 hover:bg-red-50">
+          Resetear clase
+        </button>
       </div>
       <div id="attTable" class="text-sm text-gray-700">Selecciona módulo y clase, luego “Cargar lista”.</div>
     </div>`;
@@ -118,37 +121,71 @@
         });
       });
 
-      // marcar todos asistió
-      $('#btnMarcarTodos')?.addEventListener('click', ()=>{
-        modal.open({
-          title:'Confirmar',
-          bodyHTML:'<div class="text-sm">¿Marcar <b>Asistió</b> para todos los alumnos cargados?</div>',
-          primaryLabel:'Confirmar',
-          onPrimary: async ()=>{
-            const btns = $$('#attTable [data-mark]');
-            for(const b of btns){
-              const p = decodeDataAttr(b.dataset.mark);
-              if(!p) continue;
-              if(p.st!=='asistio') continue;
-              const fd = new FormData();
-              fd.append('enrollment_id', p.enr);
-              fd.append('modulo_id', $('#selModulo').value);
-              fd.append('class_nro', $('#selClase').value);
-              fd.append('status', 'asistio');
-              try{ await apiSecretaria('attendance_mark.php',{method:'POST', body:fd}); }catch(error){
-                console.error('No se pudo marcar asistencia masiva', error);
-              }
-            }
-            modal.close(); modal.ok('Lista marcada como Asistió');
-            await cargarLista();
-          }
-        });
-      });
-
     } catch(error) {
       console.error('No se pudo cargar la lista de asistencia', error);
       tbl.innerHTML = '<div class="text-red-600">No se pudo cargar la lista.</div>';
     }
+  }
+
+  function confirmarMarcarTodos(){
+    const aula = $('#selAula')?.value;
+    const modulo = $('#selModulo')?.value;
+    if(!aula || !modulo) return modal.err('Selecciona sede, aula y módulo.');
+    if(!$$('#attTable [data-mark]').length) return modal.err('Primero carga la lista de asistencia.');
+
+    modal.open({
+      title:'Confirmar',
+      bodyHTML:'<div class="text-sm">¿Marcar <b>Asistió</b> para todos los alumnos cargados?</div>',
+      primaryLabel:'Confirmar',
+      onPrimary: async ()=>{
+        const btns = $$('#attTable [data-mark]');
+        for(const b of btns){
+          const p = decodeDataAttr(b.dataset.mark);
+          if(!p || p.st!=='asistio') continue;
+          const fd = new FormData();
+          fd.append('enrollment_id', p.enr);
+          fd.append('modulo_id', modulo);
+          fd.append('class_nro', $('#selClase').value);
+          fd.append('status', 'asistio');
+          try{
+            await apiSecretaria('attendance_mark.php',{method:'POST', body:fd});
+          }catch(error){
+            console.error('No se pudo marcar asistencia masiva', error);
+          }
+        }
+        modal.close();
+        modal.ok('Lista marcada como Asistió');
+        await cargarLista();
+      }
+    });
+  }
+
+  function confirmarResetClase(){
+    const aula = $('#selAula')?.value;
+    const modulo = $('#selModulo')?.value;
+    const clase = $('#selClase')?.value || 1;
+    if(!aula || !modulo) return modal.err('Selecciona sede, aula y módulo.');
+
+    modal.open({
+      title:'Resetear asistencia',
+      bodyHTML:'<div class="text-sm">¿Eliminar las asistencias marcadas para esta clase? Esta acción dejará la lista como “Sin marcar”.</div>',
+      primaryLabel:'Resetear',
+      onPrimary: async ()=>{
+        const fd = new FormData();
+        fd.append('aula_id', aula);
+        fd.append('modulo_id', modulo);
+        fd.append('class_nro', clase);
+        try{
+          await apiSecretaria('attendance_reset.php',{method:'POST', body:fd});
+          modal.close();
+          modal.ok('Asistencia reseteada');
+          await cargarLista();
+        }catch(error){
+          console.error('No se pudo resetear la asistencia', error);
+          modal.err('No se pudo resetear la asistencia.');
+        }
+      }
+    });
   }
 
   // Montaje inicial de la vista
@@ -158,6 +195,8 @@
 
   // Eventos de UI
   $('#btnCargar')?.addEventListener('click', cargarLista);
+  $('#btnMarcarTodos')?.addEventListener('click', confirmarMarcarTodos);
+  $('#btnResetClase')?.addEventListener('click', confirmarResetClase);
 
   // Primer llenado de módulos y render
   await loadModulos();
