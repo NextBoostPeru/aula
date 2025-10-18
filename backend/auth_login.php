@@ -77,7 +77,7 @@ $redirect = './alumno/'; // alumno por defecto
 switch ($user['role']) {
   case 'secretaria': $redirect = './secretaria/'; break;
   case 'docente':    $redirect = './dashboard_docente.html';    break;
-  case 'admin':      $redirect = './dashboard_admin.html';      break;
+  case 'admin':      $redirect = './admin/';                    break;
 }
 
 echo json_encode([
